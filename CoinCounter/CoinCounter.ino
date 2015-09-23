@@ -35,6 +35,8 @@ static volatile int counter = 0;
 static volatile boolean coinPassing = false;
 int currVolume = ORIG_VOL;
 int ledStatus = LED_OFF;
+int coinSig = LOW;
+int prevCoinSig = LOW;
 
 SoftwareSerial cumSerial(CUM_RX, CUM_TX);
 
@@ -43,20 +45,44 @@ void setup()
     cumSerial.begin(9600);
     Serial.begin(9600);
 
+    pinMode(LED_PIN, OUTPUT);
+    pinMode(COIN_INPUT, INPUT);
+    digitalWrite(LED_PIN, ledStatus);
+    coinSig = digitalRead(COIN_INPUT);
+    prevCoinSig = coinSig;
+    currTime = millis();
+
     mp3_set_serial(cumSerial);
     mp3_single_loop(false);
     mp3_set_reply(false);
-
-    pinMode(COIN_INPUT, INPUT);
-    pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, ledStatus);
-    currTime = millis();
-    attachInterrupt(digitalPinToInterrupt(COIN_INPUT), coinStateChange, CHANGE);
 }
 
 void loop()
 {
     currTime = millis();
+    coinSig = digitalRead(COIN_INPUT);
+    if (coinSig != prevCoinSig)
+    {
+        prevCoinSig = coinSig;
+        coinPassing = !coinPassing;
+        Serial.println(coinPassing);
+        if (coinPassing)
+        {
+            passStartTime = currTime;
+            Serial.println(passStartTime);
+        }
+        else
+        {
+            passInterval = currTime - passStartTime;
+            Serial.println(passInterval);
+            if (passInterval > PASS_MIN_MS && passInterval < PASS_MAX_MS)
+            {
+                counter++;
+                Serial.println(counter);
+            }
+        }        
+    }
+    
     if (counter && ledStatus == LED_OFF)
     {
         ledStatus = LED_ON;
@@ -88,23 +114,5 @@ void loop()
     if (counter && currTime - passStartTime > ZERO_TIME)
     {
         counter = 0;
-    }
-}
-
-void coinStateChange()
-{
-    currTime = millis();
-    coinPassing = !coinPassing;
-    if (coinPassing)
-    {
-        passStartTime = currTime;
-    }
-    else
-    {
-        passInterval = currTime - passStartTime;
-        if (passInterval > PASS_MIN_MS && passInterval < PASS_MAX_MS)
-        {
-            counter++;
-        }
     }
 }
