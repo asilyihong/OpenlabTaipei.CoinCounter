@@ -3,9 +3,10 @@
 
 /* settings */
 #define ORIG_VOL         30  /* init volume */
-#define REDU_VOL         15  /* reduced volume */
-#define REDU_TICK       200  /* reduce volume tick */
+#define REDU_VOL         20  /* reduced volume */
+#define REDU_INTL       200  /* reduce volume tick */
 #define REDU_TIME     10000  /* length to reduce volume of music */
+#define RES_INTL         80  /* reduce volume tick when reset */
 #define ZERO_TIME     30000  /* length to clear counter */
 #define LED_INTERVAL  20000  /* length of music */
 
@@ -37,6 +38,9 @@ int currVolume = ORIG_VOL;
 int ledStatus = LED_OFF;
 int coinSig = LOW;
 int prevCoinSig = LOW;
+int volumeReduIntl = 0;
+int volumeReduTick = 0;
+int targetVol = 0;
 
 SoftwareSerial cumSerial(CUM_RX, CUM_TX);
 
@@ -79,6 +83,13 @@ void loop()
             {
                 counter++;
                 Serial.println(counter);
+                if (counter == 1)
+                {
+                    targetVol = 0;
+                    volumeReduIntl = RES_INTL;
+                    volumeChangeTime = currTime + volumeReduIntl;
+                    volumeReduTick = 2;
+                }
             }
         }        
     }
@@ -92,19 +103,29 @@ void loop()
     {
         currVolume = ORIG_VOL;
         counter = 0;
-        mp3_stop();
-        delay(100);
         mp3_set_volume(currVolume);
-        delay(100);
+        delay(40);
         mp3_play(1);
         startTime = currTime;
         volumeChangeTime = startTime + REDU_TIME;
+        targetVol = REDU_VOL;
+        volumeReduIntl = REDU_INTL;
+        volumeReduTick = 1;
     }
-    if (currVolume > REDU_VOL && currTime > volumeChangeTime)
+    if (currVolume > targetVol && currTime > volumeChangeTime)
     {
-        currVolume--;
-        volumeChangeTime += REDU_TICK;
-        mp3_set_volume(currVolume);
+        currVolume -= volumeReduTick;
+        if (currVolume > 0)
+        {
+            mp3_set_volume(currVolume);
+            volumeChangeTime += volumeReduIntl;
+        }
+        else
+        {
+            currVolume = 0;
+            targetVol = 0;
+            mp3_stop();
+        }
     }
     if (currTime - startTime > LED_INTERVAL && ledStatus == LED_ON)
     {
